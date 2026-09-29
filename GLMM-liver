@@ -1,0 +1,122 @@
+# LOAD LIBRARIES
+
+library(tidyverse)
+library(lme4)
+library(MuMIn)
+
+options(na.action = "na.fail")
+
+# LOAD DATA
+
+df <- read.csv("Data_rawinput_morph.csv", stringsAsFactors = FALSE)
+colnames(df) <- make.names(colnames(df))
+
+
+# CLEAN + FORMAT
+
+df[df == ""] <- NA
+
+df <- df %>%
+  mutate(
+    Target.Organ = as.factor(Target.Organ),
+    Morphology = as.factor(Morphology),
+    Source = as.factor(Source),
+    Latitude = as.numeric(as.character(Latitude))
+  )
+
+
+# CREATE BINARY TARGET ORGAN
+
+# Define biologically meaningful category (EDIT IF NEEDED)
+target_organs <- c("Liver")
+
+df <- df %>%
+  mutate(
+    organ_binary = ifelse(Target.Organ %in% target_organs, 1, 0),
+    organ_binary = as.factor(organ_binary)
+  )
+
+# Remove missing
+df_glmm <- df %>%
+  drop_na(organ_binary, Morphology, Latitude, Source)
+
+
+# ✅ GLMM MODELS
+
+
+# Morphology model
+m_morph <- glmer(
+  organ_binary ~ Morphology + (1 | Source),
+  data = df_glmm,
+  family = binomial,
+  control = glmerControl(optimizer = "bobyqa")
+)
+
+# Latitude model
+m_lat <- glmer(
+  organ_binary ~ Latitude + (1 | Source),
+  data = df_glmm,
+  family = binomial,
+  control = glmerControl(optimizer = "bobyqa")
+)
+
+# Combined model
+m_both <- glmer(
+  organ_binary ~ Morphology + Latitude + (1 | Source),
+  data = df_glmm,
+  family = binomial,
+  control = glmerControl(optimizer = "bobyqa")
+)
+
+# 
+# MODEL COMPARISON
+
+
+aic_results <- AIC(m_morph, m_lat, m_both)
+anova_results <- anova(m_morph, m_both)
+
+# 
+# R-sqaured 
+#
+
+r2_morph <- r.squaredGLMM(m_morph)
+r2_lat   <- r.squaredGLMM(m_lat)
+r2_both  <- r.squaredGLMM(m_both)
+
+# 
+#  WRITE OUTPUT TO FILE
+
+
+sink("Target_Organ_GLMM_results.txt")
+
+cat("===== MODEL COMPARISON (AIC) =====\n\n")
+print(aic_results)
+
+cat("\n===== MODEL COMPARISON (ANOVA) =====\n\n")
+print(anova_results)
+
+cat("\n===== MODEL SUMMARIES =====\n\n")
+
+cat("\n--- Morphology Model ---\n")
+print(summary(m_morph))
+
+cat("\n--- Latitude Model ---\n")
+print(summary(m_lat))
+
+cat("\n--- Combined Model ---\n")
+print(summary(m_both))
+
+cat("\n===== R² VALUES =====\n\n")
+
+cat("\n--- Morphology Model ---\n")
+print(r2_morph)
+
+cat("\n--- Latitude Model ---\n")
+print(r2_lat)
+
+cat("\n--- Combined Model ---\n")
+print(r2_both)
+
+sink()
+
+cat("Output written to: Target_Organ_GLMM_results.txt\n")
