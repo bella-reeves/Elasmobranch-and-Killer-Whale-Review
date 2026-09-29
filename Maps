@@ -1,0 +1,153 @@
+############################################################
+###### Killer Whale Elasmobranch Interactions Analyis ###### 
+############################################################
+# Code by Steph Venables
+#### Heat maps ####
+
+## Load packages
+library("tidyverse")
+library("ggplot2")
+library("ggmap")
+library("rnaturalearth")
+library("rnaturalearthdata")
+library("sf")
+library("viridis")
+
+## Read in data
+data = read.csv('Data_rawinput.csv', header = TRUE)
+
+# Get world map
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+############ KWC interactions ############
+# Filter for KWC interactions and clean coords
+kwc <- data %>%
+  filter(Interaction.Type == "KWC") %>%
+  mutate(
+    Latitude = as.numeric(Latitude),
+    Longitude = as.numeric(Longitude)
+  ) %>%
+  filter(!is.na(Latitude), !is.na(Longitude))  # remove NA rows
+
+# Plot raw data as points to check distribution
+ggplot(world) +
+  geom_sf(fill = "gray95", color = "gray80") + 
+  geom_point(data = kwc, aes(x = Longitude, y = Latitude), color = "red", alpha = 0.4, size = 1)
+
+### Option 1: Hex mapping ###
+
+# Checking data distribution to adjust the scale
+# Create the hexbin object directly to view counts
+hex <- ggplot_build(
+  ggplot(kwc, aes(x = Longitude, y = Latitude)) +
+    geom_hex(binwidth = c(3,3)))
+
+table(hex$data[[1]]$count) # View distribution of counts
+
+#Interaction Count =  1  2  3  4  6  8 10 11 12 17 24 26 53 88 
+#Number of bins =    21 10  5  4  4  2  1  1  2  1  1  1  1  1 
+
+# Given the colour scale and the high number of hexbins with low interaction counts, the initial map had mostly black points
+# I adjusted the scale by transforming by log10 and setting a limit of 25, so anything >25 will be the same colour
+
+# Hex map for KWC interactions
+KWC_map = ggplot(world) +
+  geom_sf(fill = "gray95", color = "gray80") +
+  geom_hex(data = kwc,
+    aes(x = Longitude, y = Latitude),
+    binwidth = c(3,3)  ) +  # adjust binwdith to control resolution (size of hex)
+  scale_fill_viridis_c(option = "mako", trans = "log10", limits = c(1,25), 
+                       breaks = c(1, 3, 10, 25), labels = c("1", "3", "10", "25+"),
+                       guide = guide_colorbar(ticks = TRUE, ticks.colour = "gray80",frame.colour = "gray80")) +
+  coord_sf(expand = FALSE, xlim = c(-180, 180),  ylim = c(-90, 90), default_crs = st_crs(4326)) +
+  theme_classic() +
+  theme(panel.border = element_rect(color = "black", fill = NA, linewidth = 0.8), # full rectangle
+    axis.ticks = element_line(color = "black"), axis.text = element_text(color = "black")) +
+  labs(fill = "Number of\ninteractions", x = NULL, y = NULL)
+
+
+ggsave("KWC_map.pdf", plot = KWC_map, width = 8, height = 6)
+
+############ Parasitism interactions ############
+# Filter for PAR interaction type and clean coords
+par <- data %>%
+  filter(Interaction.Type == "PAR") %>%
+  mutate(
+    Latitude = as.numeric(Latitude),
+    Longitude = as.numeric(Longitude)
+  ) %>%
+  filter(!is.na(Latitude), !is.na(Longitude))  # remove NA rows
+
+# Checking data distribution to adjust the scale
+# Create the hexbin object directly to view counts
+hex <- ggplot_build(
+  ggplot(par, aes(x = Longitude, y = Latitude)) +
+    geom_hex(binwidth = c(3,3)))
+
+table(hex$data[[1]]$count) # View distribution of counts
+#Interaction Count = 1  2  3  4  5  6 10 11 48 
+#Number of bins =   19  4  2  2  1  2  1  1  1 
+
+# Hex map for PAR interactions
+PAR_map = ggplot(world) +
+  geom_sf(fill = "gray95", color = "gray80") +
+  geom_hex(data = par,
+           aes(x = Longitude, y = Latitude),
+           binwidth = c(3,3)  ) +  # adjust binwdith to control resolution (size of hex)
+  scale_fill_viridis_c(option = "mako", trans = "log10", limits = c(1,10), 
+                       breaks = c(1, 3, 5, 10), labels = c("1", "3", "5", "10+"),
+                       guide = guide_colorbar(ticks = TRUE, ticks.colour = "gray80",frame.colour = "gray80")) +
+  coord_sf(expand = FALSE, xlim = c(-180, 180),  ylim = c(-90, 90), default_crs = st_crs(4326)) +
+  theme_classic() +
+  theme(panel.border = element_rect(color = "black", fill = NA, linewidth = 0.8), # full rectangle
+        axis.ticks = element_line(color = "black"), axis.text = element_text(color = "black")) +
+  labs(fill = "Number of\ninteractions", x = NULL, y = NULL)
+
+ggsave("PAR_map.pdf", plot = PAR_map, width = 8, height = 6)
+
+############ 'Other' interactions ############
+# Filter out KWC and PAR interaction types
+oth <- data %>%
+  filter(!(Interaction.Type %in% c("KWC", "PAR"))) %>%
+  mutate(
+    Latitude = as.numeric(Latitude),
+    Longitude = as.numeric(Longitude)) %>%
+  filter(!is.na(Latitude), !is.na(Longitude))  # remove NA rows
+
+# Checking data distribution to adjust the scale
+# Create the hexbin object directly to view counts
+hex <- ggplot_build(
+  ggplot(oth, aes(x = Longitude, y = Latitude)) +
+    geom_hex(binwidth = c(3,3)))
+
+table(hex$data[[1]]$count) # View distribution of counts
+#Interaction Count = 1  2  3  5  6  7  9 11 12 15 22 47 68 
+#Number of bins =   25  9  6  1  1  3  1  1  1  1  1  1  1 
+
+# Hex map for other interactions
+OTH_map = ggplot(world) +
+  geom_sf(fill = "gray95", color = "gray80") +
+  geom_hex(data = oth,
+           aes(x = Longitude, y = Latitude),
+           binwidth = c(3,3)  ) +  # adjust binwdith to control resolution (size of hex)
+  scale_fill_viridis_c(option = "mako", trans = "log10", limits = c(1,10), 
+                       breaks = c(1, 3, 5, 10), labels = c("1", "3", "5", "10+"),
+                       guide = guide_colorbar(ticks = TRUE, ticks.colour = "gray80",frame.colour = "gray80")) +
+  coord_sf(expand = FALSE, xlim = c(-180, 180),  ylim = c(-90, 90), default_crs = st_crs(4326)) +
+  theme_classic() +
+  theme(panel.border = element_rect(color = "black", fill = NA, linewidth = 0.8), # full rectangle
+        axis.ticks = element_line(color = "black"), axis.text = element_text(color = "black")) +
+  labs(fill = "Number of\ninteractions", x = NULL, y = NULL)
+
+ggsave("OTH_map.pdf", plot = OTH_map, width = 8, height = 6)
+
+############ All interactions ############
+
+all <- data %>%
+  mutate(
+    Latitude = as.numeric(Latitude),
+    Longitude = as.numeric(Longitude)
+  ) %>% filter(!is.na(Latitude), !is.na(Longitude))  # remove NA rows
+
+
+
